@@ -10,6 +10,9 @@
 #re6: criar a waveform para as varias frequencias
 #re7: ouvir 
 
+
+#fillipe
+
 from musicpy import get_chord
 import numpy as np
 import sounddevice as sd
