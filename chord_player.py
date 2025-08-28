@@ -10,9 +10,6 @@
 #re6: criar a waveform para as varias frequencias
 #re7: ouvir 
 
-
-#fillipe
-
 from musicpy import get_chord
 import numpy as np
 import sounddevice as sd
@@ -123,6 +120,8 @@ def generate_waveform(freq, t, waveform):
     square = np.sign(sine + 1e-12)
     sawtooth = 2 * ((freq * t) % 1) -1
     triangle = 2 * np.abs(2*((freq * t) %1) -1) -1
+    if waveform == "FIllipe":
+        return triangle
     if waveform == "square": 
         return square
     elif waveform == "sawtooth": 
