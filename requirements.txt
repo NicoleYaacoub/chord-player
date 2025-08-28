@@ -1,0 +1,8 @@
+cffi==1.17.1
+dataclasses==0.6
+mido-fix==1.2.12
+musicpy==7.11
+numpy==2.2.6
+pycparser==2.22
+pygame-ce==2.5.5
+sounddevice==0.5.2

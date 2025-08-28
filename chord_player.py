@@ -2,15 +2,20 @@
 #re2: calcular a frequência das notas
 #re3: gerar som com ondas sinusoidais
     #re3.1: criar variável t
-    #re3.2: criar ondas inusoidais para cada freq 
+    #re3.2: criar ondas sinusoidais para cada freq 
     #re3.3: somar as ondas e normalizar
 #re4: ouvir o acorde diretamente no Python com sounddevice
 
-from musicpy import get_chord, chord
+#re5: pedir a waveform ao utilizador
+#re6: criar a waveform para as varias frequencias
+#re7: ouvir 
+
+from musicpy import get_chord
 import numpy as np
 import sounddevice as sd
 
-#re1
+
+waveform_input = input("Enter wave form:[sine/square/sawtooth/triangle]: ").strip().lower()
 
 while True:
 
@@ -48,7 +53,6 @@ while True:
     except:
         print("Invalid chord. Try Again.")
 
-#re2
 note_number = {'C':0 , 'C#':1 , 'D':2 , 'D#':3 , 'E':4 , 'F':5 , 'F#':6 , 'G':7 , 'G#':8 , 'A':9 , 'A#':10, 'B':11}
 equival = {
     'DB':'C#', 'EB':'D#', 'GB':'F#', 'AB':'G#', 'BB':'A#',
@@ -107,19 +111,34 @@ if bass_note:
 
 print("Freqs:", freqs_final)
 
-#re3.1
 duration = 2
 sample_rate = 44100
 t = np.linspace(0 , duration , num = sample_rate * duration , endpoint=False)
 
-#re3.2
+def generate_waveform(freq, t, waveform):
+    sine = np.sin(2* np.pi * freq * t)
+    square = np.sign(sine + 1e-12)
+    sawtooth = 2 * ((freq * t) % 1) -1
+    triangle = 2 * np.abs(2*((freq * t) %1) -1) -1
+    if waveform == "square": 
+        return square
+    elif waveform == "sawtooth": 
+        return sawtooth
+    elif waveform == "triangle": 
+        return triangle
+    else: 
+        return sine
+
+
 waves = []
 for f in freqs_final:
-    wave = np.sin( 2 * np.pi * f * t)
+    wave = generate_waveform(f, t, waveform_input)
     waves.append(wave)
 
 signal = sum(waves) 
-signal = signal / np.max(np.abs(signal))
+peak = np.max(np.abs(signal))
+if peak > 0:
+    signal = signal / peak
 
 sd.play(signal, samplerate= sample_rate)
 sd.wait()
