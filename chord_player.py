@@ -1,21 +1,44 @@
-#re1: receber o acorde do utilizador
-#re2: calcular a frequência das notas
-#re3: gerar som com ondas sinusoidais
-    #re3.1: criar variável t
-    #re3.2: criar ondas sinusoidais para cada freq 
-    #re3.3: somar as ondas e normalizar
-#re4: ouvir o acorde diretamente no Python com sounddevice
-
-#re5: pedir a waveform ao utilizador
-#re6: criar a waveform para as varias frequencias
-#re7: ouvir 
-
 from musicpy import get_chord
 import numpy as np
 import sounddevice as sd
 
+presets_input = input("Choose the preset (piano/strings/pluck/accordion/pad): ").strip().lower()
 
-waveform_input = input("Enter wave form:[sine/square/sawtooth/triangle]: ").strip().lower()
+#dicionário de presets
+PRESETS = {
+    "piano": {
+        "adsr": [0.005, 0.12, 0.20, 0.15],
+        "waveform": "sine"       
+    },
+    "strings": {
+        "adsr": [0.4, 0.3, 0.7, 0.6],
+        "waveform": "sawtooth"    
+    },
+    "pluck": {
+        "adsr": [0.002, 0.08, 0.00, 0.10],
+        "waveform": "triangle"    
+    },
+    "accordion": {
+        "adsr": [0.20, 0.20, 0.80, 0.20],
+        "waveform": "sawtooth"    
+    },
+
+    "pad": {
+        "adsr": [0.60, 0.50, 0.70, 0.80],
+        "waveform": "square"    
+    },
+
+} 
+
+#validaçao do preset input 
+if presets_input in PRESETS:
+    adsr = PRESETS[presets_input]["adsr"]
+    waveform_input = PRESETS[presets_input]["waveform"]
+else:
+    print("Invalid preset. Using piano as default.")
+    adsr = PRESETS["piano"]["adsr"]
+    waveform_input = PRESETS["piano"]["waveform"]
+
 
 while True:
 
@@ -104,24 +127,41 @@ if bass_note:
 else:
     freqs_final = freqs
 
-print("Chord Notes:", notes_separated)
-
-if bass_note:
-    print("Bass note is:" , bass_note,number_bass)
-
-print("Freqs:", freqs_final)
-
 duration = 2
 sample_rate = 44100
 t = np.linspace(0 , duration , num = sample_rate * duration , endpoint=False)
+
+
+def adsr_envelope(duration, adsr:list, sample_rate = 44100): 
+
+    attack_samples = int(adsr[0] * sample_rate)
+    decay_samples = int(adsr[1] * sample_rate)
+    release_samples = int(adsr[3] * sample_rate)
+    sustain_samples = max(0, int((duration * sample_rate) - (attack_samples + decay_samples + release_samples)))
+
+    attack = np.linspace(0, 1, attack_samples, endpoint=False)
+    decay = np.linspace(1, adsr[2], decay_samples, endpoint=False)
+    sustain = np.ones(sustain_samples) * adsr[2]
+    release = np.linspace(adsr[2] , 0 , release_samples)
+
+    envelope = np.concatenate([attack, decay, sustain, release])
+    expected = duration * sample_rate
+
+    if len(envelope) != expected:
+        if len(envelope) > expected:
+            envelope = envelope[:expected]
+        else:
+            envelope = np.pad(envelope, (0, expected - len(envelope)))
+
+    return envelope
+
+
 
 def generate_waveform(freq, t, waveform):
     sine = np.sin(2* np.pi * freq * t)
     square = np.sign(sine + 1e-12)
     sawtooth = 2 * ((freq * t) % 1) -1
     triangle = 2 * np.abs(2*((freq * t) %1) -1) -1
-    if waveform == "FIllipe":
-        return triangle
     if waveform == "square": 
         return square
     elif waveform == "sawtooth": 
@@ -137,10 +177,18 @@ for f in freqs_final:
     wave = generate_waveform(f, t, waveform_input)
     waves.append(wave)
 
+
 signal = sum(waves) 
 peak = np.max(np.abs(signal))
 if peak > 0:
     signal = signal / peak
 
-sd.play(signal, samplerate= sample_rate)
+
+#chamar a função adsr
+envelope = adsr_envelope(duration, adsr, sample_rate)
+#aplicar a função ao sinal
+signal = signal[:len(envelope)] * envelope
+
+signal = signal.astype(np.float32) #converte o sinal para float32
+sd.play(signal, samplerate=sample_rate)
 sd.wait()
