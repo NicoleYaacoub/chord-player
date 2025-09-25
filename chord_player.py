@@ -42,7 +42,7 @@ else:
 
 while True:
 
-    ch_input = input("Enter chord: ")
+    ch_input = input("Enter chord: ").upper()
 
     chord_part = "" 
     bass_note = ""
