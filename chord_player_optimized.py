@@ -7,10 +7,16 @@ import sounddevice as sd
 # ==============================
 
 NOTE_NUMBER = {'C':0 , 'C#':1 , 'D':2 , 'D#':3 , 'E':4 , 'F':5 , 'F#':6 , 'G':7 , 'G#':8 , 'A':9 , 'A#':10, 'B':11}
+
 EQUIVAL = {
-    'DB':'C#', 'EB':'D#', 'GB':'F#', 'AB':'G#', 'BB':'A#',
-    'E#':'F', 'B#':'C', 'CB':'B', 'FB':'E'
+    # Bemóis → sustenidos
+    'DB': 'C#', 'EB': 'D#', 'GB': 'F#', 'AB': 'G#', 'BB': 'A#',
+    # Sust. → notas naturais
+    'E#': 'F', 'B#': 'C', 'CB': 'B', 'FB': 'E',
+    # Dó sustenidos duplos, etc. (double sharps)
+    'FX': 'G', 'CX': 'D', 'GX': 'A', 'AX': 'B', 'DX': 'E'
 }
+
 
 PRESETS = {
     "piano": {"adsr": [0.005, 0.12, 0.20, 0.15], "waveform": "sine"},
@@ -26,9 +32,18 @@ PRESETS = {
 
 def note_to_midi(letter, number):
     """Converte nota (ex: C, 4) para número MIDI"""
-    note_name = EQUIVAL.get(letter.upper(), letter.upper())
+    note_name = letter.upper()
+
+    # Normalizar usando equivalências
+    note_name = EQUIVAL.get(note_name, note_name)
+
+    if note_name not in NOTE_NUMBER:
+        raise ValueError(f"Nota desconhecida: {note_name}")
+
     note_num = NOTE_NUMBER[note_name]
-    return note_num + (int(number) + 1) * 12
+    midi_number = note_num + (int(number) + 1) * 12
+    return midi_number
+
 
 def midi_to_freq(midi):
     """Converte número MIDI para frequência"""
@@ -89,6 +104,10 @@ def chord_to_freqs(ch_input):
         base, ch_type = chord_part[:2], chord_part[2:]
     else:
         base, ch_type = chord_part[:1], chord_part[1:]
+
+    # Normalizar acidentes (bemóis → sustenidos, etc.)
+    base = EQUIVAL.get(base, base)
+
 
     if ch_type in ["", "M", "MAJ"]:
         ch_type = "maj"
