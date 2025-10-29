@@ -1,6 +1,7 @@
 from musicpy import get_chord
 import numpy as np
 import sounddevice as sd
+import re
 
 # ==============================
 # Constantes globais
@@ -49,13 +50,14 @@ def midi_to_freq(midi):
     """Converte número MIDI para frequência"""
     return 440 * pow(2, (midi - 69) / 12)
 
+
 def adsr_envelope(duration, adsr, sample_rate=44100):
     """Cria envelope ADSR"""
     attack, decay, sustain_level, release = adsr
     attack_samples = int(attack * sample_rate)
     decay_samples = int(decay * sample_rate)
     release_samples = int(release * sample_rate)
-    sustain_samples = max(0, int(duration*sample_rate) - (attack_samples + decay_samples + release_samples))
+    sustain_samples = max(0, int(duration * sample_rate) - (attack_samples + decay_samples + release_samples))
 
     attack_curve = np.linspace(0, 1, attack_samples, endpoint=False)
     decay_curve = np.linspace(1, sustain_level, decay_samples, endpoint=False)
@@ -73,6 +75,7 @@ def adsr_envelope(duration, adsr, sample_rate=44100):
 
     return envelope
 
+
 def generate_waveform(freq, t, waveform):
     """Gera onda a partir de frequência"""
     sine = np.sin(2 * np.pi * freq * t)
@@ -85,12 +88,47 @@ def generate_waveform(freq, t, waveform):
     else:  # sine por default
         return sine
 
+
 # ==============================
-# Parsing de acordes
+# Parsing e normalização de acordes
 # ==============================
 
+def normalize_chord_type(ch_type):
+    """
+    Normaliza o tipo de acorde para formato compatível com musicpy.
+    Exemplo: 'm7(5-)' → 'm7b5', '°' → 'dim', '+' → 'aug'
+    """
+    # 1. Limpeza inicial
+    clean = ch_type.replace("(", "").replace(")", "").replace("-", "b").lower()
+
+    # 2. Mapeamento conhecido
+    mapping = {
+        "maj7": "maj7",
+        "m7b5": "m7b5",
+        "ø": "m7b5",
+        "dim": "dim",
+        "°": "dim",
+        "+": "aug",
+        "aug": "aug",
+        "sus2": "sus2",
+        "sus4": "sus4",
+        "m9": "min9",
+        "m11": "min11",
+        "m13": "min13",
+        "m": "min",
+        "maj": "maj"
+    }
+
+    # 3. Procura do padrão
+    for k, v in mapping.items():
+        if k in clean:
+            return v
+
+    return clean
+
+
 def chord_to_freqs(ch_input):
-    """Recebe um acorde em string e devolve lista de frequências"""
+    """Recebe um acorde em string e devolve lista de frequências e notas"""
     ch_input = ch_input.upper()
 
     # Separar acorde e baixo
@@ -105,14 +143,9 @@ def chord_to_freqs(ch_input):
     else:
         base, ch_type = chord_part[:1], chord_part[1:]
 
-    # Normalizar acidentes (bemóis → sustenidos, etc.)
+    # Normalizar acidentes e tipo de acorde
     base = EQUIVAL.get(base, base)
-
-
-    if ch_type in ["", "M", "MAJ"]:
-        ch_type = "maj"
-    if ch_type == "M":
-        ch_type = "min"
+    ch_type = normalize_chord_type(ch_type)
 
     # Obter notas com musicpy
     ch = get_chord(base, ch_type)
@@ -121,18 +154,25 @@ def chord_to_freqs(ch_input):
     notes_separated = []
     for n in ch:
         note = str(n)
-        letter, number = "".join([c for c in note if not c.isdigit()]), "".join([c for c in note if c.isdigit()])
+        letter = "".join([c for c in note if not c.isdigit()])
+        number = "".join([c for c in note if c.isdigit()])
         notes_separated.append((letter, number))
 
-    # Converter para freq
+    # Converter para frequências
     freqs = [midi_to_freq(note_to_midi(l, n)) for l, n in notes_separated]
 
-    # Adicionar baixo
+    # Adicionar baixo, se existir
     if bass_note:
         bass_freq = midi_to_freq(note_to_midi(bass_note, notes_separated[0][1]))  # mesma oitava
         freqs = [bass_freq] + freqs
 
-    return freqs
+    # Lista de notas (para exibir)
+    notes_list = [f"{l}{n}" for l, n in notes_separated]
+    if bass_note:
+        notes_list.insert(0, bass_note + notes_separated[0][1])
+
+    return freqs, notes_list
+
 
 # ==============================
 # Síntese e reprodução
@@ -140,7 +180,7 @@ def chord_to_freqs(ch_input):
 
 def synthesize_chord(ch_input, preset="piano", duration=2.0, sample_rate=44100):
     """Gera sinal de um acorde dado um preset"""
-    freqs = chord_to_freqs(ch_input)
+    freqs, notes = chord_to_freqs(ch_input)
     adsr = PRESETS[preset]["adsr"]
     waveform = PRESETS[preset]["waveform"]
 
@@ -159,12 +199,14 @@ def synthesize_chord(ch_input, preset="piano", duration=2.0, sample_rate=44100):
     envelope = adsr_envelope(duration, adsr, sample_rate)
     signal = signal[:len(envelope)] * envelope
 
-    return signal.astype(np.float32)
+    return signal.astype(np.float32), notes
+
 
 def play_signal(signal, sample_rate=44100):
     """Toca o sinal"""
     sd.play(signal, samplerate=sample_rate)
     sd.wait()
+
 
 # ==============================
 # Main
@@ -176,8 +218,10 @@ if __name__ == "__main__":
         print("Invalid preset. Using piano as default.")
         preset = "piano"
 
-    chord = input("Enter chord: ")
+    chord = input("Enter chord: ").strip()
     duration = float(input("Enter duration in seconds: ") or 2)
 
-    signal = synthesize_chord(chord, preset, duration)
+    signal, notes = synthesize_chord(chord, preset, duration)
+    print(f"Notes in chord: {notes}")
+
     play_signal(signal)
