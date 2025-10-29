@@ -96,15 +96,26 @@ def generate_waveform(freq, t, waveform):
 def normalize_chord_type(ch_type):
     """
     Normaliza o tipo de acorde para formato compatível com musicpy.
-    Exemplo: 'm7(5-)' → 'm7b5', '°' → 'dim', '+' → 'aug'
+    Ex.: 'm7(5-)' → 'm7b5', 'ø' → 'm7b5', '°' → 'dim', '+' → 'aug'
     """
-    # 1. Limpeza inicial
-    clean = ch_type.replace("(", "").replace(")", "").replace("-", "b").lower()
+    clean = ch_type.strip().lower()
 
-    # 2. Mapeamento conhecido
-    mapping = {
+    # Corrigir padrões complexos primeiro
+    clean = clean.replace("(5-)", "b5").replace("(b5)", "b5").replace("(♭5)", "b5")
+    clean = clean.replace("(#5)", "#5").replace("(5#)", "#5")
+
+    # Agora remover símbolos extra
+    clean = clean.replace("(", "").replace(")", "").replace("-", "b")
+
+    # Mapeamento de equivalências
+    aliases = {
+        "": "maj",
+        "maj": "maj",
         "maj7": "maj7",
+        "m": "min",
+        "min": "min",
         "m7b5": "m7b5",
+        "min7b5": "m7b5",
         "ø": "m7b5",
         "dim": "dim",
         "°": "dim",
@@ -115,16 +126,14 @@ def normalize_chord_type(ch_type):
         "m9": "min9",
         "m11": "min11",
         "m13": "min13",
-        "m": "min",
-        "maj": "maj"
     }
 
-    # 3. Procura do padrão
-    for k, v in mapping.items():
-        if k in clean:
-            return v
+    # procurar correspondência exata
+    if clean in aliases:
+        return aliases[clean]
 
     return clean
+
 
 
 def chord_to_freqs(ch_input):
